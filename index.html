@@ -1,7 +1,11 @@
-<!-- =====================================================
-     TSW Invoice Generator | Paste into WP HTML Block
-     ===================================================== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Free Invoice Generator — The Story Watch</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* =========================================================
    CSS CUSTOM PROPERTIES
@@ -796,6 +800,7 @@ body {
         <!-- Left: Logo + Company -->
         <div class="tsw-logo-zone">
           <div class="tsw-logo-drop tsw-no-print" id="tsw-logo-drop">
+            <input type="file" id="tsw-logo-input" accept="image/*"/>
             <div class="tsw-logo-drop-text">
               <div class="tsw-logo-drop-icon">🖼</div>
               <div>Click to upload logo</div>
@@ -937,490 +942,564 @@ Phone | Email</textarea>
 <!-- TOAST -->
 <div class="tsw-toast" id="tsw-toast"></div>
 
-<!-- TOAST -->
-<div class="tsw-toast" id="tsw-toast"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-/* TSW Invoice Generator — WP Safe */
-(function(){
+(function() {
 'use strict';
 
-/* Wait for both DOM and jsPDF */
-function ready(fn) {
-  if (document.readyState !== 'loading') { fn(); }
-  else { document.addEventListener('DOMContentLoaded', fn); }
+/* ─── CURRENCY CONFIG ─── */
+const CURRENCIES = {
+  USD: { symbol: '$',    pdfSymbol: '$',     locale: 'en-US',  code: 'USD' },
+  EUR: { symbol: '€',    pdfSymbol: 'EUR ',  locale: 'en-US',  code: 'EUR' },
+  GBP: { symbol: '£',    pdfSymbol: 'GBP ',  locale: 'en-GB',  code: 'GBP' },
+  CAD: { symbol: 'C$',   pdfSymbol: 'C$',    locale: 'en-CA',  code: 'CAD' },
+  INR: { symbol: '₹',    pdfSymbol: 'INR ',  locale: 'en-US',  code: 'INR' },
+  AUD: { symbol: 'A$',   pdfSymbol: 'A$',    locale: 'en-AU',  code: 'AUD' },
+  CHF: { symbol: 'CHF ', pdfSymbol: 'CHF ',  locale: 'en-US',  code: 'CHF' },
+  JPY: { symbol: '¥',    pdfSymbol: 'JPY ',  locale: 'en-US',  code: 'JPY' },
+};
+
+function getCurrency() {
+  return CURRENCIES[document.getElementById('tsw-currency').value] || CURRENCIES.USD;
 }
 
-ready(function() {
+// For on-screen display — uses native symbol
+function formatMoney(n) {
+  const cur = getCurrency();
+  if (cur.code === 'JPY') return cur.symbol + Math.round(n).toLocaleString('en-US');
+  return cur.symbol + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-/* ─── Create file input in JS — completely bypasses WP media uploader ─── */
-var tswFileInput = document.createElement('input');
-tswFileInput.type    = 'file';
-tswFileInput.accept  = 'image/*';
-tswFileInput.id      = 'tsw-logo-input';
-tswFileInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;width:1px;height:1px;';
-document.body.appendChild(tswFileInput);
+// For PDF — uses ASCII-safe symbol + standard en-US number formatting
+function pdfMoney(n) {
+  const cur = getCurrency();
+  if (cur.code === 'JPY') return cur.pdfSymbol + Math.round(n).toLocaleString('en-US');
+  return cur.pdfSymbol + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-/* Wire logo drop zone click → file input */
-var logoDrop = document.getElementById('tsw-logo-drop');
-if (logoDrop) {
-  logoDrop.style.cursor = 'pointer';
-  logoDrop.addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    tswFileInput.click();
+/* ─── LINE ITEMS ─── */
+let rows = [
+  { desc: 'Service / Product Description', qty: 1, rate: 100 }
+];
+
+function renderRows() {
+  const tbody = document.getElementById('tsw-rows');
+  const cur = getCurrency();
+  tbody.innerHTML = '';
+  rows.forEach((row, i) => {
+    const total = (parseFloat(row.qty) || 0) * (parseFloat(row.rate) || 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input class="tsw-cell-input desc" data-i="${i}" data-f="desc" value="${escHtml(row.desc)}" placeholder="Item description"/></td>
+      <td><input class="tsw-cell-input num" data-i="${i}" data-f="qty"  value="${row.qty}"  placeholder="1"   type="number" min="0" step="any"/></td>
+      <td><input class="tsw-cell-input num" data-i="${i}" data-f="rate" value="${row.rate}" placeholder="0.00" type="number" min="0" step="any"/></td>
+      <td class="tsw-line-total">${formatMoney(total)}</td>
+      <td class="tsw-row-delete tsw-no-print">
+        <button class="tsw-delete-btn" data-i="${i}" title="Remove row">×</button>
+      </td>`;
+    tbody.appendChild(tr);
   });
+  updateTotals();
 }
 
-tswFileInput.addEventListener('change', function(e) {
-  var file = e.target.files && e.target.files[0];
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('tsw-rows').addEventListener('input', e => {
+  const el = e.target;
+  const i = parseInt(el.dataset.i);
+  const f = el.dataset.f;
+  if (isNaN(i) || !f) return;
+  rows[i][f] = el.value;
+  if (f === 'qty' || f === 'rate') {
+    const total = (parseFloat(rows[i].qty) || 0) * (parseFloat(rows[i].rate) || 0);
+    el.closest('tr').querySelector('.tsw-line-total').textContent = formatMoney(total);
+    updateTotals();
+  }
+});
+
+document.getElementById('tsw-rows').addEventListener('click', e => {
+  const btn = e.target.closest('.tsw-delete-btn');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.i);
+  if (rows.length === 1) { showToast('⚠️ At least one line item is required'); return; }
+  rows.splice(i, 1);
+  renderRows();
+});
+
+document.getElementById('tsw-add-row').addEventListener('click', () => {
+  rows.push({ desc: '', qty: 1, rate: 0 });
+  renderRows();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#tsw-rows .tsw-cell-input.desc');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+});
+
+/* ─── TOTALS ─── */
+function updateTotals() {
+  const subtotal  = rows.reduce((s, r) => s + (parseFloat(r.qty)||0) * (parseFloat(r.rate)||0), 0);
+  const taxRate   = parseFloat(document.getElementById('tsw-tax').value) || 0;
+  const discRate  = parseFloat(document.getElementById('tsw-discount').value) || 0;
+  const taxAmt    = subtotal * (taxRate / 100);
+  const discAmt   = subtotal * (discRate / 100);
+  const total     = subtotal + taxAmt - discAmt;
+
+  document.getElementById('tsw-subtotal').textContent = formatMoney(subtotal);
+  document.getElementById('tsw-total').textContent    = formatMoney(total);
+
+  const bd = document.getElementById('tsw-breakdown');
+  let bdHtml = '';
+  if (taxAmt  > 0) bdHtml += `<div class="tsw-breakdown-row"><span>Tax (${taxRate}%)</span><span>+${formatMoney(taxAmt)}</span></div>`;
+  if (discAmt > 0) bdHtml += `<div class="tsw-breakdown-row"><span>Discount (${discRate}%)</span><span>−${formatMoney(discAmt)}</span></div>`;
+  bd.innerHTML = bdHtml;
+}
+
+['tsw-tax', 'tsw-discount', 'tsw-currency'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => renderRows());
+});
+
+/* ─── LOGO UPLOAD ─── */
+document.getElementById('tsw-logo-input').addEventListener('change', e => {
+  const file = e.target.files[0];
   if (!file || !file.type.startsWith('image/')) return;
-  var reader = new FileReader();
-  reader.onload = function(evt) {
-    var img = document.getElementById('tsw-logo-img');
-    if (img) { img.src = evt.target.result; img.style.display = 'block'; }
-    if (logoDrop) logoDrop.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = document.getElementById('tsw-logo-img');
+    img.src = reader.result;
+    img.style.display = 'block';
+    document.getElementById('tsw-logo-drop').style.display = 'none';
   };
   reader.readAsDataURL(file);
 });
 
-/* ─── CURRENCY ─── */
-var CURRENCIES = {
-  USD:{symbol:'$',    pdfSymbol:'$',    code:'USD'},
-  EUR:{symbol:'€',    pdfSymbol:'EUR ', code:'EUR'},
-  GBP:{symbol:'£',    pdfSymbol:'GBP ', code:'GBP'},
-  CAD:{symbol:'C$',   pdfSymbol:'C$',   code:'CAD'},
-  INR:{symbol:'₹',    pdfSymbol:'INR ', code:'INR'},
-  AUD:{symbol:'A$',   pdfSymbol:'A$',   code:'AUD'},
-  CHF:{symbol:'CHF ', pdfSymbol:'CHF ', code:'CHF'},
-  JPY:{symbol:'¥',    pdfSymbol:'JPY ', code:'JPY'}
-};
-function getCur(){ return CURRENCIES[document.getElementById('tsw-currency').value]||CURRENCIES.USD; }
-function fmt(n){
-  var c=getCur();
-  if(c.code==='JPY') return c.symbol+Math.round(n).toLocaleString('en-US');
-  return c.symbol+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-}
-function pfmt(n){
-  var c=getCur();
-  if(c.code==='JPY') return c.pdfSymbol+Math.round(n).toLocaleString('en-US');
-  return c.pdfSymbol+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-}
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function today(){ return new Date().toISOString().split('T')[0]; }
-
-/* ─── STATE ─── */
-var rows=[{desc:'Service / Product Description',qty:1,rate:100}];
-var status='draft';
-var toastT;
-
-/* ─── TOAST ─── */
-function toast(msg){
-  var el=document.getElementById('tsw-toast');
-  if(!el) return;
-  el.textContent=msg; el.classList.add('show');
-  clearTimeout(toastT);
-  toastT=setTimeout(function(){ el.classList.remove('show'); },3000);
-}
-
-/* ─── RENDER ─── */
-function render(){
-  var tb=document.getElementById('tsw-rows');
-  if(!tb) return;
-  tb.innerHTML='';
-  rows.forEach(function(row,i){
-    var t=(parseFloat(row.qty)||0)*(parseFloat(row.rate)||0);
-    var tr=document.createElement('tr');
-    tr.innerHTML=
-      '<td><input class="tsw-cell-input desc" data-i="'+i+'" data-f="desc" value="'+esc(row.desc)+'" placeholder="Item description"/></td>'+
-      '<td><input class="tsw-cell-input num" data-i="'+i+'" data-f="qty" value="'+row.qty+'" type="number" min="0" step="any"/></td>'+
-      '<td><input class="tsw-cell-input num" data-i="'+i+'" data-f="rate" value="'+row.rate+'" type="number" min="0" step="any"/></td>'+
-      '<td class="tsw-line-total">'+fmt(t)+'</td>'+
-      '<td class="tsw-row-delete tsw-no-print"><button class="tsw-delete-btn" data-i="'+i+'">\u00d7</button></td>';
-    tb.appendChild(tr);
-  });
-  totals();
-}
-
-/* ─── TOTALS ─── */
-function totals(){
-  var sub=rows.reduce(function(s,r){return s+(parseFloat(r.qty)||0)*(parseFloat(r.rate)||0);},0);
-  var tx=parseFloat(document.getElementById('tsw-tax').value)||0;
-  var dc=parseFloat(document.getElementById('tsw-discount').value)||0;
-  var txa=sub*(tx/100), dca=sub*(dc/100), tot=sub+txa-dca;
-  document.getElementById('tsw-subtotal').textContent=fmt(sub);
-  document.getElementById('tsw-total').textContent=fmt(tot);
-  var bd=document.getElementById('tsw-breakdown'), h='';
-  if(txa>0) h+='<div class="tsw-breakdown-row"><span>Tax ('+tx+'%)</span><span>+'+fmt(txa)+'</span></div>';
-  if(dca>0) h+='<div class="tsw-breakdown-row"><span>Discount ('+dc+'%)</span><span>-'+fmt(dca)+'</span></div>';
-  bd.innerHTML=h;
-}
-
-/* ─── ROW EVENTS via delegation ─── */
-document.getElementById('tsw-rows').addEventListener('input',function(e){
-  var el=e.target, i=parseInt(el.getAttribute('data-i')), f=el.getAttribute('data-f');
-  if(isNaN(i)||!f) return;
-  rows[i][f]=el.value;
-  if(f==='qty'||f==='rate'){
-    var t=(parseFloat(rows[i].qty)||0)*(parseFloat(rows[i].rate)||0);
-    el.closest('tr').querySelector('.tsw-line-total').textContent=fmt(t);
-    totals();
-  }
-});
-document.getElementById('tsw-rows').addEventListener('click',function(e){
-  var btn=e.target.closest('.tsw-delete-btn');
-  if(!btn) return;
-  if(rows.length===1){toast('⚠️ Need at least one item');return;}
-  rows.splice(parseInt(btn.getAttribute('data-i')),1); render();
-});
-document.getElementById('tsw-add-row').addEventListener('click',function(){
-  rows.push({desc:'',qty:1,rate:0}); render();
-  setTimeout(function(){
-    var ins=document.querySelectorAll('#tsw-rows .tsw-cell-input.desc');
-    if(ins.length) ins[ins.length-1].focus();
-  },50);
-});
-['tsw-tax','tsw-discount','tsw-currency'].forEach(function(id){
-  var el=document.getElementById(id);
-  el.addEventListener('input',function(){render();});
-  el.addEventListener('change',function(){render();});
-});
-
-/* ─── STATUS ─── */
-['draft','pending','paid'].forEach(function(s){
-  document.getElementById('tsw-status-'+s).addEventListener('click',function(){
-    status=s;
-    ['draft','pending','paid'].forEach(function(x){
-      var el=document.getElementById('tsw-status-'+x);
-      el.style.fontWeight=x===s?'700':'500';
-      el.style.boxShadow=x===s?'0 2px 8px rgba(0,0,0,0.12)':'none';
+/* ─── STATUS PILLS ─── */
+let currentStatus = 'draft';
+['draft','pending','paid'].forEach(s => {
+  document.getElementById(`tsw-status-${s}`).addEventListener('click', () => {
+    currentStatus = s;
+    ['draft','pending','paid'].forEach(x => {
+      document.getElementById(`tsw-status-${x}`).style.fontWeight = x === s ? '700' : '500';
+      document.getElementById(`tsw-status-${x}`).style.boxShadow = x === s ? '0 2px 8px rgba(0,0,0,0.12)' : 'none';
     });
-    document.getElementById('tsw-paid-stamp').classList.toggle('visible',s==='paid');
-    toast(s==='paid'?'✅ Marked as Paid':s==='pending'?'🕐 Marked as Pending':'📝 Set to Draft');
+    const stamp = document.getElementById('tsw-paid-stamp');
+    stamp.classList.toggle('visible', s === 'paid');
+    const titleEl = document.getElementById('tsw-inv-title-word');
+    titleEl.textContent = s === 'pending' ? 'INVOICE' : s === 'paid' ? 'INVOICE' : 'INVOICE';
+    showToast(s === 'paid' ? '✅ Marked as Paid' : s === 'pending' ? '🕐 Marked as Pending' : '📝 Set to Draft');
   });
 });
+
+/* ─── PDF GENERATION (text-based via jsPDF) ─── */
+document.getElementById('tsw-pdf-btn').addEventListener('click', generatePDF);
+
+function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const cur = getCurrency();
+  const margin = 48;
+  let y = 0;
+
+  // ── Accent bar ──
+  doc.setFillColor(192, 57, 43);
+  doc.rect(0, 0, W, 6, 'F');
+
+  // ── Background ──
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 6, W, H - 6, 'F');
+
+  y = 48;
+
+  // ── Logo (if uploaded) — contained in a clean box ──
+  const logoImg = document.getElementById('tsw-logo-img');
+  let logoHeight = 0;
+  if (logoImg && logoImg.src && logoImg.src.startsWith('data:')) {
+    try {
+      const logoFormat = logoImg.src.substring(5, logoImg.src.indexOf(';')).split('/')[1].toUpperCase();
+      const safeFormat = ['PNG','JPEG','JPG','WEBP'].includes(logoFormat) ? logoFormat : 'PNG';
+      const logoBoxW = 110;
+      const logoBoxH = 55;
+      const natW = logoImg.naturalWidth  || 110;
+      const natH = logoImg.naturalHeight || 55;
+      const ratio = Math.min(logoBoxW / natW, logoBoxH / natH);
+      const drawW = natW * ratio;
+      const drawH = natH * ratio;
+      // Center within box
+      const offsetX = (logoBoxW - drawW) / 2;
+      const offsetY = (logoBoxH - drawH) / 2;
+      // White background container
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(229, 231, 235);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margin, y, logoBoxW, logoBoxH, 4, 4, 'FD');
+      doc.addImage(logoImg.src, safeFormat === 'JPG' ? 'JPEG' : safeFormat,
+        margin + offsetX, y + offsetY, drawW, drawH);
+      logoHeight = logoBoxH + 12;
+    } catch(e) {
+      logoHeight = 0;
+    }
+  }
+
+  y += logoHeight;
+
+  // ── Company name ──
+  const companyName = document.getElementById('tsw-company-name').value || 'Your Company';
+  const companyAddr = document.getElementById('tsw-company-address').value || '';
+  doc.setFont('times', 'bold');
+  doc.setFontSize(17);
+  doc.setTextColor(26, 26, 46);
+  doc.text(companyName, margin, y);
+
+  // ── INVOICE title (right) — Times gives it a premium editorial feel ──
+  doc.setFont('times', 'bold');
+  doc.setFontSize(40);
+  doc.setTextColor(26, 26, 46);
+  doc.text('INVOICE', W - margin, 62, { align: 'right' });
+
+  y += 17;
+
+  // ── Company address ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(107, 114, 128);
+  const addrLines = companyAddr.split('\n').slice(0, 4);
+  addrLines.forEach(line => {
+    if (line.trim()) { doc.text(line.trim(), margin, y); y += 13; }
+  });
+
+  // ── Meta grid (right side) ──
+  const invNum   = document.getElementById('tsw-inv-number').value || 'INV-001';
+  const invDate  = document.getElementById('tsw-inv-date').value   || '';
+  const invDue   = document.getElementById('tsw-inv-due').value    || '';
+  const invTerms = document.getElementById('tsw-terms').value      || '';
+
+  let metaY = 76;
+  const metaX1 = W - margin - 160;
+  const metaX2 = W - margin;
+
+  const metaRows = [
+    ['Invoice #', invNum],
+    ['Date', invDate],
+    invDue   ? ['Due Date', invDue]   : null,
+    invTerms ? ['Terms',    invTerms] : null,
+    ['Currency', cur.code],
+  ].filter(Boolean);
+
+  metaRows.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(107, 114, 128);
+    doc.text(label, metaX1, metaY, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(26, 26, 46);
+    doc.text(val, metaX2, metaY, { align: 'right' });
+    metaY += 16;
+  });
+
+  // ── Status badge ──
+  if (currentStatus !== 'draft') {
+    const statusColor = currentStatus === 'paid' ? [5, 150, 105] : [217, 119, 6];
+    doc.setFillColor(...statusColor);
+    doc.roundedRect(W - margin - 52, metaY, 52, 18, 4, 4, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(currentStatus.toUpperCase(), W - margin - 26, metaY + 11.5, { align: 'center' });
+  }
+
+  y = Math.max(y, metaY) + 24;
+
+  // ── Divider ──
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(1);
+  doc.line(margin, y, W - margin, y);
+  y += 22;
+
+  // ── Bill From / Bill To ──
+  const billFrom = document.getElementById('tsw-bill-from').value || '';
+  const billTo   = document.getElementById('tsw-bill-to').value   || '';
+  const colW = (W - margin * 2) / 2 - 16;
+
+  ['BILL FROM', 'BILL TO'].forEach((label, idx) => {
+    const x = margin + idx * (colW + 32);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(192, 57, 43);
+    doc.text(label, x, y);
+  });
+
+  y += 14;
+  const fromLines = billFrom.split('\n');
+  const toLines   = billTo.split('\n');
+  const maxLines  = Math.max(fromLines.length, toLines.length, 1);
+
+  for (let i = 0; i < maxLines; i++) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    if (fromLines[i] && fromLines[i].trim()) doc.text(fromLines[i].trim(), margin, y);
+    if (toLines[i]   && toLines[i].trim())   doc.text(toLines[i].trim(),   margin + colW + 32, y);
+    y += 14;
+  }
+
+  y += 20;
+
+  // ── Line items table header ──
+  doc.setFillColor(26, 26, 46);
+  doc.roundedRect(margin, y, W - margin * 2, 28, 4, 4, 'F');
+
+  const colDesc = margin + 14;
+  const colQty  = W - margin - 260;
+  const colRate = W - margin - 150;
+  const colAmt  = W - margin - 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text('DESCRIPTION', colDesc, y + 18);
+  doc.text('QTY',    colQty,  y + 18, { align: 'right' });
+  doc.text('RATE',   colRate, y + 18, { align: 'right' });
+  doc.text('AMOUNT', colAmt,  y + 18, { align: 'right' });
+  y += 36;
+
+  // ── Line items rows ──
+  rows.forEach((row, idx) => {
+    const lineTotal = (parseFloat(row.qty) || 0) * (parseFloat(row.rate) || 0);
+    if (idx % 2 === 1) {
+      doc.setFillColor(248, 249, 250);
+      doc.rect(margin, y - 7, W - margin * 2, 24, 'F');
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    const descText = doc.splitTextToSize(row.desc || '', colQty - colDesc - 10);
+    doc.text(descText[0] || '', colDesc, y + 9);
+    doc.setTextColor(55, 65, 81);
+    doc.text(String(row.qty || ''), colQty,  y + 9, { align: 'right' });
+    doc.text(pdfMoney(row.rate),    colRate, y + 9, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 24, 39);
+    doc.text(pdfMoney(lineTotal), colAmt, y + 9, { align: 'right' });
+    y += 24;
+    if (y > H - 180) { doc.addPage(); y = 48; }
+  });
+
+  // ── Divider ──
+  y += 10;
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.75);
+  doc.line(margin, y, W - margin, y);
+  y += 18;
+
+  // ── Totals ──
+  const subtotal = rows.reduce((s, r) => s + (parseFloat(r.qty)||0) * (parseFloat(r.rate)||0), 0);
+  const taxRate  = parseFloat(document.getElementById('tsw-tax').value)      || 0;
+  const discRate = parseFloat(document.getElementById('tsw-discount').value) || 0;
+  const taxAmt   = subtotal * (taxRate  / 100);
+  const discAmt  = subtotal * (discRate / 100);
+  const total    = subtotal + taxAmt - discAmt;
+
+  const totLabelX = W - margin - 130;
+  const totValX   = W - margin;
+
+  const totRows = [
+    ['Subtotal', pdfMoney(subtotal)],
+    taxAmt  > 0 ? [`Tax (${taxRate}%)`,      '+' + pdfMoney(taxAmt)]  : null,
+    discAmt > 0 ? [`Discount (${discRate}%)`, '-' + pdfMoney(discAmt)] : null,
+  ].filter(Boolean);
+
+  totRows.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    doc.text(label, totLabelX, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81);
+    doc.text(val, totValX, y, { align: 'right' });
+    y += 18;
+  });
+
+  // ── Total box ──
+  y += 6;
+  const boxLeft  = margin;
+  const boxRight = W - margin;
+  const boxW     = boxRight - boxLeft;
+  doc.setFillColor(26, 26, 46);
+  doc.roundedRect(boxLeft, y - 13, boxW, 36, 6, 6, 'F');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text('TOTAL', boxLeft + 18, y + 11);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(18);
+  doc.text(pdfMoney(total), boxRight - 14, y + 11, { align: 'right' });
+
+  y += 48;
+
+  // ── Notes ──
+  const notes = document.getElementById('tsw-notes').value.trim();
+  if (notes) {
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(1);
+    doc.line(margin, y, W - margin, y);
+    y += 16;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(192, 57, 43);
+    doc.text('NOTES & PAYMENT DETAILS', margin, y);
+    y += 14;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(55, 65, 81);
+    const noteLines = doc.splitTextToSize(notes, W - margin * 2);
+    noteLines.forEach(line => {
+      doc.text(line, margin, y);
+      y += 14;
+    });
+  }
+
+  // ── PAID stamp ──
+  if (currentStatus === 'paid') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(80);
+    doc.setTextColor(5, 150, 105);
+    doc.setGState(new doc.GState({ opacity: 0.12 }));
+    doc.text('PAID', W / 2, H / 2 + 20, { align: 'center', angle: 22 });
+    doc.setGState(new doc.GState({ opacity: 1 }));
+  }
+
+  // ── Footer ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(156, 163, 175);
+  doc.text('Generated with The Story Watch Invoice Generator · thestorywatch.com', W / 2, H - 24, { align: 'center' });
+
+  const invNum2 = document.getElementById('tsw-inv-number').value || 'invoice';
+  doc.save(`${invNum2}.pdf`);
+  showToast('✅ PDF downloaded successfully');
+}
 
 /* ─── PRINT ─── */
-document.getElementById('tsw-print-btn').addEventListener('click',function(){window.print();});
+document.getElementById('tsw-print-btn').addEventListener('click', () => window.print());
 
-/* ─── NEW ─── */
-document.getElementById('tsw-clear-btn').addEventListener('click',function(){
-  if(!confirm('Start a new invoice?')) return;
-  rows=[{desc:'',qty:1,rate:0}];
-  ['tsw-company-name','tsw-inv-number'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('tsw-company-name').value='Your Company Name';
-  document.getElementById('tsw-company-address').value='Street Address\nCity, ZIP\nPhone | Email';
-  document.getElementById('tsw-bill-from').value='';
-  document.getElementById('tsw-bill-to').value='';
-  document.getElementById('tsw-notes').value='';
-  document.getElementById('tsw-inv-number').value='INV-001';
-  document.getElementById('tsw-tax').value='0';
-  document.getElementById('tsw-discount').value='0';
-  document.getElementById('tsw-terms').value='';
-  document.getElementById('tsw-inv-date').value=today();
-  document.getElementById('tsw-inv-due').value='';
-  document.getElementById('tsw-logo-img').style.display='none';
-  document.getElementById('tsw-logo-drop').style.display='';
+/* ─── CLEAR / NEW ─── */
+document.getElementById('tsw-clear-btn').addEventListener('click', () => {
+  if (!confirm('Start a new invoice? Unsaved changes will be lost.')) return;
+  rows = [{ desc: '', qty: 1, rate: 0 }];
+  document.getElementById('tsw-company-name').value    = 'Your Company Name';
+  document.getElementById('tsw-company-address').value = 'Street Address\nCity, ZIP\nPhone | Email';
+  document.getElementById('tsw-bill-from').value       = '';
+  document.getElementById('tsw-bill-to').value         = '';
+  document.getElementById('tsw-notes').value           = '';
+  document.getElementById('tsw-inv-number').value      = 'INV-001';
+  document.getElementById('tsw-tax').value             = '0';
+  document.getElementById('tsw-discount').value        = '0';
+  document.getElementById('tsw-terms').value           = '';
+  document.getElementById('tsw-inv-date').value        = todayStr();
+  document.getElementById('tsw-inv-due').value         = '';
+  document.getElementById('tsw-logo-img').style.display = 'none';
+  document.getElementById('tsw-logo-drop').style.display = '';
   document.getElementById('tsw-paid-stamp').classList.remove('visible');
-  status='draft'; render(); toast('🆕 New invoice started');
+  currentStatus = 'draft';
+  renderRows();
+  showToast('🆕 New invoice started');
 });
 
-/* ─── SAVE / LOAD ─── */
-document.getElementById('tsw-save-btn').addEventListener('click',function(){
-  try{
-    localStorage.setItem('tsw_inv',JSON.stringify({
-      cn:document.getElementById('tsw-company-name').value,
-      ca:document.getElementById('tsw-company-address').value,
-      bf:document.getElementById('tsw-bill-from').value,
-      bt:document.getElementById('tsw-bill-to').value,
-      in:document.getElementById('tsw-inv-number').value,
-      id:document.getElementById('tsw-inv-date').value,
-      du:document.getElementById('tsw-inv-due').value,
-      cu:document.getElementById('tsw-currency').value,
-      te:document.getElementById('tsw-terms').value,
-      tx:document.getElementById('tsw-tax').value,
-      dc:document.getElementById('tsw-discount').value,
-      no:document.getElementById('tsw-notes').value,
-      ro:rows, st:status,
-      lg:document.getElementById('tsw-logo-img').src
-    }));
-    toast('💾 Draft saved');
-  }catch(e){toast('⚠️ Could not save');}
-});
-document.getElementById('tsw-load-btn').addEventListener('click',function(){
-  try{
-    var raw=localStorage.getItem('tsw_inv');
-    if(!raw){toast('⚠️ No saved draft');return;}
-    var d=JSON.parse(raw);
-    document.getElementById('tsw-company-name').value   =d.cn||'';
-    document.getElementById('tsw-company-address').value=d.ca||'';
-    document.getElementById('tsw-bill-from').value=d.bf||'';
-    document.getElementById('tsw-bill-to').value  =d.bt||'';
-    document.getElementById('tsw-inv-number').value=d.in||'';
-    document.getElementById('tsw-inv-date').value  =d.id||'';
-    document.getElementById('tsw-inv-due').value   =d.du||'';
-    document.getElementById('tsw-currency').value  =d.cu||'USD';
-    document.getElementById('tsw-terms').value     =d.te||'';
-    document.getElementById('tsw-tax').value       =d.tx||'0';
-    document.getElementById('tsw-discount').value  =d.dc||'0';
-    document.getElementById('tsw-notes').value     =d.no||'';
-    rows=d.ro||[{desc:'',qty:1,rate:0}]; status=d.st||'draft';
-    if(d.lg&&d.lg.startsWith('data:')){
-      var img=document.getElementById('tsw-logo-img');
-      img.src=d.lg; img.style.display='block';
-      document.getElementById('tsw-logo-drop').style.display='none';
-    }
-    document.getElementById('tsw-paid-stamp').classList.toggle('visible',status==='paid');
-    render(); toast('📂 Draft loaded');
-  }catch(e){toast('⚠️ Could not load');}
+/* ─── SAVE / LOAD (localStorage) ─── */
+document.getElementById('tsw-save-btn').addEventListener('click', () => {
+  const data = collectData();
+  try {
+    localStorage.setItem('tsw_invoice_draft', JSON.stringify(data));
+    showToast('💾 Draft saved successfully');
+  } catch(e) {
+    showToast('⚠️ Could not save — storage unavailable');
+  }
 });
 
-/* ─── PDF ─── */
-document.getElementById('tsw-pdf-btn').addEventListener('click',function(){
-  if(!window.jspdf||!window.jspdf.jsPDF){toast('⚠️ PDF library still loading, try again');return;}
-  makePDF();
+document.getElementById('tsw-load-btn').addEventListener('click', () => {
+  try {
+    const raw = localStorage.getItem('tsw_invoice_draft');
+    if (!raw) { showToast('⚠️ No saved draft found'); return; }
+    applyData(JSON.parse(raw));
+    showToast('📂 Draft loaded successfully');
+  } catch(e) {
+    showToast('⚠️ Could not load saved draft');
+  }
 });
 
-function makePDF(){
-  var jsPDF=window.jspdf.jsPDF;
-  var doc=new jsPDF({unit:'pt',format:'a4'});
-  var W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight();
-  var cur=getCur(), mg=52, y=0;
+function collectData() {
+  return {
+    companyName: document.getElementById('tsw-company-name').value,
+    companyAddr: document.getElementById('tsw-company-address').value,
+    billFrom:    document.getElementById('tsw-bill-from').value,
+    billTo:      document.getElementById('tsw-bill-to').value,
+    invNumber:   document.getElementById('tsw-inv-number').value,
+    invDate:     document.getElementById('tsw-inv-date').value,
+    invDue:      document.getElementById('tsw-inv-due').value,
+    currency:    document.getElementById('tsw-currency').value,
+    terms:       document.getElementById('tsw-terms').value,
+    tax:         document.getElementById('tsw-tax').value,
+    discount:    document.getElementById('tsw-discount').value,
+    notes:       document.getElementById('tsw-notes').value,
+    rows:        rows,
+    status:      currentStatus,
+    logoSrc:     document.getElementById('tsw-logo-img').src,
+  };
+}
 
-  /* ── Background ── */
-  doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
-  /* Thick left accent stripe */
-  doc.setFillColor(192,57,43); doc.rect(0,0,6,H,'F');
-  /* Subtle top bar */
-  doc.setFillColor(26,26,46); doc.rect(0,0,W,3,'F');
-
-  /* ── HEADER ZONE (logo left, INVOICE right) ── */
-  y = 44;
-  var headerBottom = y;
-
-  /* Logo — floated left, no box, just clean image */
-  var li=document.getElementById('tsw-logo-img');
-  var logoEndX = mg;
-  if(li&&li.src&&li.src.startsWith('data:')){
-    try{
-      var fmt=li.src.substring(5,li.src.indexOf(';')).split('/')[1].toUpperCase();
-      var sf=fmt==='JPG'?'JPEG':(['PNG','JPEG','WEBP'].includes(fmt)?fmt:'PNG');
-      var bw=64,bh=64,nw=li.naturalWidth||64,nh=li.naturalHeight||64;
-      var r=Math.min(bw/nw,bh/nh),dw=nw*r,dh=nh*r;
-      doc.addImage(li.src,sf,mg,y,dw,dh);
-      logoEndX = mg + dw + 12;
-      headerBottom = Math.max(headerBottom, y + dh);
-    }catch(e){ logoEndX=mg; }
+function applyData(d) {
+  document.getElementById('tsw-company-name').value    = d.companyName || '';
+  document.getElementById('tsw-company-address').value = d.companyAddr || '';
+  document.getElementById('tsw-bill-from').value       = d.billFrom    || '';
+  document.getElementById('tsw-bill-to').value         = d.billTo      || '';
+  document.getElementById('tsw-inv-number').value      = d.invNumber   || '';
+  document.getElementById('tsw-inv-date').value        = d.invDate     || '';
+  document.getElementById('tsw-inv-due').value         = d.invDue      || '';
+  document.getElementById('tsw-currency').value        = d.currency    || 'USD';
+  document.getElementById('tsw-terms').value           = d.terms       || '';
+  document.getElementById('tsw-tax').value             = d.tax         || '0';
+  document.getElementById('tsw-discount').value        = d.discount    || '0';
+  document.getElementById('tsw-notes').value           = d.notes       || '';
+  rows = d.rows || [{ desc: '', qty: 1, rate: 0 }];
+  currentStatus = d.status || 'draft';
+  if (d.logoSrc && d.logoSrc.startsWith('data:')) {
+    const img = document.getElementById('tsw-logo-img');
+    img.src = d.logoSrc;
+    img.style.display = 'block';
+    document.getElementById('tsw-logo-drop').style.display = 'none';
   }
+  document.getElementById('tsw-paid-stamp').classList.toggle('visible', currentStatus === 'paid');
+  renderRows();
+}
 
-  /* Company name + address to the right of logo */
-  var cn=document.getElementById('tsw-company-name').value||'';
-  var ca=document.getElementById('tsw-company-address').value||'';
-  var textX = logoEndX;
-  if(cn){
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(26,26,46);
-    doc.text(cn, textX, y+12);
-  }
-  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,124,132);
-  var addrY = y + (cn ? 26 : 12);
-  ca.split('\n').slice(0,4).forEach(function(l){
-    if(l.trim()){ doc.text(l.trim(), textX, addrY); addrY+=12; }
-  });
-  headerBottom = Math.max(headerBottom, addrY + 4);
+/* ─── TOAST ─── */
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('tsw-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
 
-  /* INVOICE title — top right, very large */
-  doc.setFont('times','bold'); doc.setFontSize(48); doc.setTextColor(26,26,46);
-  doc.text('INVOICE', W-mg, y+36, {align:'right'});
-
-  /* Invoice number displayed prominently below INVOICE title */
-  var iNum=document.getElementById('tsw-inv-number').value||'INV-001';
-  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(192,57,43);
-  doc.text(iNum, W-mg, y+52, {align:'right'});
-
-  y = Math.max(headerBottom, y+68) + 20;
-
-  /* ── Meta grid — right-aligned, clean two-col ── */
-  var iDate=document.getElementById('tsw-inv-date').value||'';
-  var iDue=document.getElementById('tsw-inv-due').value||'';
-  var iTerm=document.getElementById('tsw-terms').value||'';
-  var metaLeft=W-mg-220, metaRight=W-mg;
-  var mY=y;
-
-  var metaRows=[['Date', iDate]];
-  if(iDue)  metaRows.push(['Due Date', iDue]);
-  if(iTerm) metaRows.push(['Terms', iTerm]);
-  metaRows.push(['Currency', cur.code]);
-
-  metaRows.forEach(function(row){
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(152,156,164);
-    doc.text(row[0].toUpperCase(), metaLeft, mY);
-    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(26,26,46);
-    doc.text(row[1], metaRight, mY, {align:'right'});
-    mY+=16;
-  });
-
-  /* Status badge */
-  if(status!=='draft'){
-    var sc=status==='paid'?[5,150,105]:[217,119,6];
-    doc.setFillColor(sc[0],sc[1],sc[2]);
-    doc.roundedRect(metaRight-60,mY+2,60,16,3,3,'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(255,255,255);
-    doc.text(status.toUpperCase(), metaRight-30, mY+12, {align:'center'});
-    mY+=24;
-  }
-
-  y = Math.max(y, mY) + 8;
-
-  /* ── Full-width dark divider ── */
-  doc.setFillColor(26,26,46); doc.rect(mg,y,W-mg*2,1.5,'F');
-  y+=18;
-
-  /* ── Bill From / Bill To in two clean columns ── */
-  var bf=document.getElementById('tsw-bill-from').value||'';
-  var bt=document.getElementById('tsw-bill-to').value||'';
-  var halfW=(W-mg*2)/2;
-
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(152,156,164);
-  doc.text('BILLED FROM', mg, y);
-  doc.text('BILLED TO',   mg+halfW, y);
-  y+=13;
-
-  var fl=bf.split('\n'), tl=bt.split('\n');
-  var ml=Math.max(fl.length,tl.length,1);
-  for(var i=0;i<ml;i++){
-    var isFirst=(i===0);
-    doc.setFont('helvetica', isFirst?'bold':'normal');
-    doc.setFontSize(isFirst?11:9.5);
-    doc.setTextColor(isFirst?26:55, isFirst?26:65, isFirst?46:81);
-    if(fl[i]&&fl[i].trim()) doc.text(fl[i].trim(), mg,        y);
-    if(tl[i]&&tl[i].trim()) doc.text(tl[i].trim(), mg+halfW,  y);
-    y += isFirst ? 15 : 13;
-  }
-  y+=22;
-
-  /* ── Line items table ── */
-  var cd=mg+10, cq=W-mg-240, cr=W-mg-130, ca=W-mg-8;
-  var rowH=26;
-
-  /* Header */
-  doc.setFillColor(26,26,46); doc.rect(mg,y,W-mg*2,rowH,'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(255,255,255);
-  doc.text('DESCRIPTION', cd,   y+17);
-  doc.text('QTY',         cq,   y+17, {align:'right'});
-  doc.text('UNIT PRICE',  cr,   y+17, {align:'right'});
-  doc.text('AMOUNT',      ca,   y+17, {align:'right'});
-  y+=rowH;
-
-  /* Rows */
-  rows.forEach(function(row,idx){
-    var lt=(parseFloat(row.qty)||0)*(parseFloat(row.rate)||0);
-    var bg=idx%2===0?[255,255,255]:[248,249,251];
-    doc.setFillColor(bg[0],bg[1],bg[2]); doc.rect(mg,y,W-mg*2,rowH+2,'F');
-
-    /* Description — bold, dark */
-    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
-    var dtxt=doc.splitTextToSize(row.desc||'', cq-cd-8);
-    doc.text(dtxt[0]||'', cd, y+17);
-
-    /* Qty, Rate — lighter */
-    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(100,108,120);
-    doc.text(String(row.qty||''), cq, y+17, {align:'right'});
-    doc.text(pfmt(row.rate),      cr, y+17, {align:'right'});
-
-    /* Amount — bold, dark */
-    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
-    doc.text(pfmt(lt), ca, y+17, {align:'right'});
-
-    /* Bottom border per row */
-    doc.setDrawColor(235,237,240); doc.setLineWidth(0.5);
-    doc.line(mg, y+rowH+2, W-mg, y+rowH+2);
-
-    y+=rowH+2;
-    if(y>H-200){doc.addPage();y=48;}
-  });
-  y+=12;
-
-  /* ── Totals — right-aligned, clean ── */
-  var sub=rows.reduce(function(s,r){return s+(parseFloat(r.qty)||0)*(parseFloat(r.rate)||0);},0);
-  var txR=parseFloat(document.getElementById('tsw-tax').value)||0;
-  var dcR=parseFloat(document.getElementById('tsw-discount').value)||0;
-  var txA=sub*(txR/100), dcA=sub*(dcR/100), tot=sub+txA-dcA;
-  var tlabel=W-mg-160, tvalue=W-mg;
-
-  /* Subtotal row */
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,124,132);
-  doc.text('Subtotal', tlabel, y, {align:'right'});
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(55,65,81);
-  doc.text(pfmt(sub), tvalue, y, {align:'right'});
-  y+=15;
-
-  if(txA>0){
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,124,132);
-    doc.text('Tax ('+txR+'%)', tlabel, y, {align:'right'});
-    doc.setTextColor(55,65,81); doc.text('+'+pfmt(txA), tvalue, y, {align:'right'});
-    y+=15;
-  }
-  if(dcA>0){
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,124,132);
-    doc.text('Discount ('+dcR+'%)', tlabel, y, {align:'right'});
-    doc.setTextColor(5,150,105); doc.text('-'+pfmt(dcA), tvalue, y, {align:'right'});
-    y+=15;
-  }
-
-  /* Separator before total */
-  y+=6;
-  doc.setDrawColor(200,202,206); doc.setLineWidth(0.75);
-  doc.line(tlabel-20, y, W-mg, y);
-  y+=12;
-
-  /* Amount Due box — full width, premium */
-  doc.setFillColor(26,26,46); doc.roundedRect(mg, y, W-mg*2, 44, 4,4,'F');
-  /* Red left accent inside box */
-  doc.setFillColor(192,57,43); doc.roundedRect(mg, y, 4, 44, 2,2,'F');
-  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(180,185,195);
-  doc.text('AMOUNT DUE', mg+18, y+16);
-  doc.setFont('times','bold'); doc.setFontSize(22); doc.setTextColor(255,255,255);
-  doc.text(pfmt(tot), W-mg-14, y+29, {align:'right'});
-  y+=60;
-
-  /* ── Notes ── */
-  var notes=document.getElementById('tsw-notes').value.trim();
-  if(notes){
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(152,156,164);
-    doc.text('NOTES & PAYMENT DETAILS', mg, y); y+=12;
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(80,88,100);
-    doc.splitTextToSize(notes,W-mg*2).forEach(function(l){doc.text(l,mg,y);y+=13;});
-    y+=8;
-  }
-
-  /* ── PAID watermark ── */
-  if(status==='paid'){
-    try{
-      doc.setFont('helvetica','bold'); doc.setFontSize(90); doc.setTextColor(5,150,105);
-      doc.setGState(new doc.GState({opacity:0.07}));
-      doc.text('PAID',W/2,H/2,{align:'center',angle:25});
-      doc.setGState(new doc.GState({opacity:1}));
-    }catch(e){}
-  }
-
-  /* ── Footer ── */
-  doc.setFillColor(245,246,248); doc.rect(0,H-32,W,32,'F');
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,164,172);
-  doc.text('thestorywatch.com \xb7 Free Invoice Generator', mg, H-12);
-  doc.text('Page 1', W-mg, H-12, {align:'right'});
-
-  doc.save((document.getElementById('tsw-inv-number').value||'invoice')+'.pdf');
-  toast('✅ PDF downloaded');
+/* ─── HELPERS ─── */
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
 }
 
 /* ─── INIT ─── */
-document.getElementById('tsw-inv-date').value=today();
-var dd=new Date(); dd.setDate(dd.getDate()+30);
-document.getElementById('tsw-inv-due').value=dd.toISOString().split('T')[0];
-render();
+document.getElementById('tsw-inv-date').value = todayStr();
 
-}); /* end ready() */
+// Set due date 30 days from now
+const due = new Date(); due.setDate(due.getDate() + 30);
+document.getElementById('tsw-inv-due').value = due.toISOString().split('T')[0];
+
+renderRows();
+
 })();
 </script>
-<!-- END TSW Invoice Generator -->
+</body>
+</html>
