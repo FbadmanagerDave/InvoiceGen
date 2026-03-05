@@ -1,0 +1,1353 @@
+<!-- =====================================================
+     TSW Invoice Generator | Paste into WP HTML Block
+     ===================================================== -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+/* =========================================================
+   CSS CUSTOM PROPERTIES
+   ========================================================= */
+:root {
+  --tsw-red:       #c0392b;
+  --tsw-red-dark:  #96281b;
+  --tsw-red-light: #fdf2f1;
+  --charcoal:      #1a1a2e;
+  --charcoal-mid:  #2c2c3e;
+  --ink:           #111827;
+  --ink-mid:       #374151;
+  --ink-soft:      #6b7280;
+  --border:        #e5e7eb;
+  --border-light:  #f3f4f6;
+  --canvas:        #ffffff;
+  --workspace:     #f1f3f6;
+  --success:       #059669;
+  --warning:       #d97706;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.10);
+  --shadow-lg:     0 12px 40px rgba(0,0,0,0.14);
+  --shadow-xl:     0 24px 64px rgba(0,0,0,0.18);
+  --radius:        8px;
+  --radius-lg:     12px;
+}
+
+/* =========================================================
+   RESET & BASE
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--workspace);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* =========================================================
+   APP SHELL
+   ========================================================= */
+.tsw-inv-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+/* ── Top bar ── */
+.tsw-inv-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tsw-inv-topbar-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.3px;
+}
+
+.tsw-inv-topbar-title span {
+  color: var(--tsw-red);
+}
+
+.tsw-inv-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tsw-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.tsw-btn-primary {
+  background: var(--tsw-red);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(192,57,43,0.30);
+}
+.tsw-btn-primary:hover {
+  background: var(--tsw-red-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(192,57,43,0.38);
+}
+
+.tsw-btn-ghost {
+  background: var(--canvas);
+  color: var(--ink-mid);
+  border: 1.5px solid var(--border);
+}
+.tsw-btn-ghost:hover {
+  border-color: var(--tsw-red);
+  color: var(--tsw-red);
+  background: var(--tsw-red-light);
+}
+
+.tsw-btn-danger {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1.5px solid var(--border);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.tsw-btn-danger:hover {
+  background: #fef2f2;
+  color: var(--tsw-red);
+  border-color: var(--tsw-red);
+}
+
+/* ── Status pill ── */
+.tsw-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+.tsw-status-pill.draft    { background: #f3f4f6; color: var(--ink-soft); border-color: var(--border); }
+.tsw-status-pill.pending  { background: #fffbeb; color: var(--warning);  border-color: #fde68a; }
+.tsw-status-pill.paid     { background: #ecfdf5; color: var(--success);  border-color: #6ee7b7; }
+
+/* =========================================================
+   INVOICE CANVAS
+   ========================================================= */
+.tsw-inv-canvas {
+  background: var(--canvas);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Invoice top accent bar ── */
+.tsw-inv-accent {
+  height: 5px;
+  background: linear-gradient(90deg, var(--tsw-red) 0%, #e74c3c 50%, #c0392b 100%);
+}
+
+.tsw-inv-body {
+  padding: 48px 52px 52px;
+}
+
+/* =========================================================
+   HEADER SECTION
+   ========================================================= */
+.tsw-inv-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 44px;
+  align-items: start;
+}
+
+/* ── Logo zone ── */
+.tsw-logo-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tsw-logo-drop {
+  width: 180px;
+  height: 90px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--border-light);
+  position: relative;
+  overflow: hidden;
+}
+.tsw-logo-drop:hover {
+  border-color: var(--tsw-red);
+  background: var(--tsw-red-light);
+}
+.tsw-logo-drop input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.tsw-logo-drop-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  pointer-events: none;
+  line-height: 1.5;
+}
+.tsw-logo-drop-icon {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+.tsw-logo-img {
+  max-height: 86px;
+  max-width: 176px;
+  object-fit: contain;
+  display: none;
+}
+
+.tsw-company-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--charcoal);
+  border: none;
+  outline: none;
+  width: 100%;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s;
+  background: transparent;
+}
+.tsw-company-name:focus { border-bottom-color: var(--tsw-red); }
+
+.tsw-company-address {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  border: none;
+  outline: none;
+  resize: none;
+  width: 100%;
+  background: transparent;
+  padding: 0;
+  font-family: 'DM Sans', sans-serif;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+.tsw-company-address:focus { border-bottom-color: var(--tsw-red); }
+
+/* ── Invoice meta ── */
+.tsw-inv-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.tsw-inv-title-word {
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.tsw-meta-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 10px 20px;
+  align-items: center;
+  text-align: right;
+}
+
+.tsw-meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.tsw-meta-input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 11px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--canvas);
+  width: 160px;
+  text-align: right;
+}
+.tsw-meta-input:focus {
+  border-color: var(--tsw-red);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.08);
+}
+
+.tsw-currency-select {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 11px;
+  outline: none;
+  transition: border-color 0.2s;
+  background: var(--canvas);
+  width: 160px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+.tsw-currency-select:focus { border-color: var(--tsw-red); }
+
+/* ── Status row in meta ── */
+.tsw-meta-status-wrap {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* =========================================================
+   BILLING ADDRESSES
+   ========================================================= */
+.tsw-billing-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 40px;
+  padding-bottom: 36px;
+  border-bottom: 1.5px solid var(--border-light);
+}
+
+.tsw-billing-block label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tsw-red);
+  margin-bottom: 10px;
+}
+
+.tsw-billing-textarea {
+  width: 100%;
+  min-height: 88px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.6;
+  background: var(--canvas);
+}
+.tsw-billing-textarea:focus {
+  border-color: var(--tsw-red);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.08);
+}
+.tsw-billing-textarea::placeholder { color: #d1d5db; }
+
+/* =========================================================
+   LINE ITEMS TABLE
+   ========================================================= */
+.tsw-items-section { margin-bottom: 36px; }
+
+.tsw-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.tsw-items-table thead tr {
+  background: var(--charcoal);
+}
+
+.tsw-items-table thead th {
+  padding: 11px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+  text-align: left;
+}
+.tsw-items-table thead th:first-child { border-radius: 8px 0 0 0; }
+.tsw-items-table thead th:last-child  { border-radius: 0 8px 0 0; text-align: right; }
+.tsw-items-table thead th.num        { text-align: right; }
+
+.tsw-items-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
+}
+.tsw-items-table tbody tr:hover { background: #fafafa; }
+.tsw-items-table tbody tr:last-child { border-bottom: none; }
+
+.tsw-items-table tbody td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+/* ── Cell inputs ── */
+.tsw-cell-input {
+  width: 100%;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tsw-cell-input:focus {
+  border-color: var(--tsw-red);
+  background: var(--canvas);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.07);
+}
+.tsw-cell-input.num { text-align: right; }
+.tsw-cell-input.desc { min-width: 180px; }
+
+.tsw-line-total {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+  text-align: right;
+  padding: 9px 14px 9px 11px;
+  white-space: nowrap;
+}
+
+.tsw-row-delete {
+  width: 32px;
+  text-align: center;
+  padding: 4px;
+}
+
+.tsw-delete-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+.tsw-delete-btn:hover {
+  background: #fef2f2;
+  color: var(--tsw-red);
+}
+
+/* ── Add row button ── */
+.tsw-add-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tsw-red);
+  background: var(--tsw-red-light);
+  border: 1.5px dashed #e8a09a;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.tsw-add-row-btn:hover {
+  background: #fbe8e6;
+  border-color: var(--tsw-red);
+}
+
+/* =========================================================
+   SUMMARY SECTION
+   ========================================================= */
+.tsw-summary-section {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 40px;
+  align-items: start;
+}
+
+/* ── Notes ── */
+.tsw-notes-block label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tsw-red);
+  margin-bottom: 10px;
+}
+
+.tsw-notes-textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.6;
+  background: var(--canvas);
+}
+.tsw-notes-textarea:focus {
+  border-color: var(--tsw-red);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.08);
+}
+.tsw-notes-textarea::placeholder { color: #d1d5db; }
+
+/* ── Totals box ── */
+.tsw-totals-box {
+  background: var(--charcoal);
+  border-radius: var(--radius-lg);
+  padding: 24px 26px;
+  color: white;
+}
+
+.tsw-totals-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.tsw-totals-label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+}
+
+.tsw-totals-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+}
+
+.tsw-totals-input {
+  width: 90px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  background: rgba(255,255,255,0.08);
+  outline: none;
+  text-align: right;
+  transition: border-color 0.2s;
+}
+.tsw-totals-input:focus { border-color: rgba(255,255,255,0.5); }
+
+.tsw-totals-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.12);
+  margin: 4px 0 18px;
+}
+
+.tsw-totals-grand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.tsw-totals-grand-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tsw-totals-grand-value {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.5px;
+}
+
+/* ── Tax/discount breakdown pills ── */
+.tsw-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.tsw-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+
+/* =========================================================
+   PAID WATERMARK
+   ========================================================= */
+.tsw-paid-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-22deg);
+  font-family: 'Playfair Display', serif;
+  font-size: 88px;
+  font-weight: 700;
+  color: rgba(5, 150, 105, 0.12);
+  border: 8px solid rgba(5, 150, 105, 0.12);
+  border-radius: 12px;
+  padding: 8px 28px;
+  letter-spacing: 8px;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+  user-select: none;
+}
+.tsw-paid-stamp.visible { display: block; }
+
+/* =========================================================
+   TOOLBAR (controls below canvas)
+   ========================================================= */
+.tsw-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+/* =========================================================
+   TOAST NOTIFICATION
+   ========================================================= */
+.tsw-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--charcoal);
+  color: white;
+  padding: 13px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tsw-toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* =========================================================
+   PRINT STYLES
+   ========================================================= */
+@media print {
+  body { background: white; padding: 0; }
+  .tsw-inv-topbar, .tsw-toolbar, .tsw-inv-topbar { display: none !important; }
+  .tsw-no-print { display: none !important; }
+  .tsw-inv-canvas { box-shadow: none; border-radius: 0; }
+  .tsw-inv-body { padding: 32px; }
+  .tsw-logo-drop { display: none; }
+  .tsw-logo-img { display: block !important; }
+  .tsw-cell-input, .tsw-billing-textarea, .tsw-notes-textarea,
+  .tsw-company-name, .tsw-company-address, .tsw-meta-input,
+  .tsw-currency-select { border-color: transparent !important; background: transparent !important; }
+  .tsw-delete-btn, .tsw-add-row-btn, .tsw-row-delete { display: none !important; }
+  .tsw-totals-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tsw-paid-stamp { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 768px) {
+  .tsw-inv-shell { padding: 16px 12px 48px; }
+  .tsw-inv-body { padding: 28px 22px 36px; }
+
+  .tsw-inv-header {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .tsw-inv-meta { align-items: flex-start; }
+  .tsw-inv-title-word { font-size: 32px; }
+
+  .tsw-meta-grid {
+    grid-template-columns: auto auto;
+    width: 100%;
+  }
+  .tsw-meta-input, .tsw-currency-select { width: 140px; }
+
+  .tsw-billing-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .tsw-summary-section {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .tsw-items-table thead th:nth-child(3),
+  .tsw-items-table tbody td:nth-child(3) { display: none; }
+
+  .tsw-inv-topbar-title { font-size: 20px; }
+
+  .tsw-totals-grand-value { font-size: 22px; }
+
+  .tsw-toolbar { justify-content: stretch; }
+  .tsw-toolbar .tsw-btn { flex: 1; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="tsw-inv-shell">
+
+  <!-- TOP BAR -->
+  <div class="tsw-inv-topbar tsw-no-print">
+    <div class="tsw-inv-topbar-title">Invoice <span>Generator</span></div>
+    <div class="tsw-inv-actions">
+      <button class="tsw-btn tsw-btn-ghost" id="tsw-clear-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+        New Invoice
+      </button>
+      <button class="tsw-btn tsw-btn-ghost" id="tsw-print-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+        Print
+      </button>
+      <button class="tsw-btn tsw-btn-primary" id="tsw-pdf-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Download PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- INVOICE CANVAS -->
+  <div class="tsw-inv-canvas" id="tsw-canvas">
+    <div class="tsw-inv-accent"></div>
+
+    <!-- PAID WATERMARK -->
+    <div class="tsw-paid-stamp" id="tsw-paid-stamp">PAID</div>
+
+    <div class="tsw-inv-body">
+
+      <!-- HEADER -->
+      <div class="tsw-inv-header">
+
+        <!-- Left: Logo + Company -->
+        <div class="tsw-logo-zone">
+          <div class="tsw-logo-drop tsw-no-print" id="tsw-logo-drop" onclick="document.getElementById('tsw-logo-input').click()">
+            <input type="file" id="tsw-logo-input" accept="image/*" style="display:none !important; position:absolute; left:-9999px;"/>
+            <div class="tsw-logo-drop-text">
+              <div class="tsw-logo-drop-icon">🖼</div>
+              <div>Click to upload logo</div>
+            </div>
+          </div>
+          <img id="tsw-logo-img" class="tsw-logo-img" src="" alt="Company Logo"/>
+          <input class="tsw-company-name" id="tsw-company-name" type="text" value="Your Company Name" placeholder="Your Company Name"/>
+          <textarea class="tsw-company-address" id="tsw-company-address" rows="3" placeholder="Street Address&#10;City, ZIP&#10;Phone | Email">Street Address
+City, ZIP
+Phone | Email</textarea>
+        </div>
+
+        <!-- Right: Invoice Meta -->
+        <div class="tsw-inv-meta">
+          <div class="tsw-meta-status-wrap tsw-no-print">
+            <div class="tsw-status-pill draft" id="tsw-status-draft" title="Set to Draft">Draft</div>
+            <div class="tsw-status-pill pending" id="tsw-status-pending" title="Set to Pending">Pending</div>
+            <div class="tsw-status-pill paid" id="tsw-status-paid" title="Set to Paid">Paid</div>
+          </div>
+          <div class="tsw-inv-title-word" id="tsw-inv-title-word">INVOICE</div>
+          <div class="tsw-meta-grid">
+            <span class="tsw-meta-label">Invoice #</span>
+            <input class="tsw-meta-input" id="tsw-inv-number" type="text" value="INV-001"/>
+
+            <span class="tsw-meta-label">Date</span>
+            <input class="tsw-meta-input" id="tsw-inv-date" type="date"/>
+
+            <span class="tsw-meta-label">Due Date</span>
+            <input class="tsw-meta-input" id="tsw-inv-due" type="date"/>
+
+            <span class="tsw-meta-label">Currency</span>
+            <select class="tsw-currency-select" id="tsw-currency">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="CAD">CAD (C$)</option>
+              <option value="INR">INR (₹)</option>
+              <option value="AUD">AUD (A$)</option>
+              <option value="CHF">CHF (CHF)</option>
+              <option value="JPY">JPY (¥)</option>
+            </select>
+
+            <span class="tsw-meta-label">Payment Terms</span>
+            <select class="tsw-currency-select" id="tsw-terms">
+              <option value="">— Select —</option>
+              <option value="Due on Receipt">Due on Receipt</option>
+              <option value="Net 7">Net 7</option>
+              <option value="Net 15">Net 15</option>
+              <option value="Net 30">Net 30</option>
+              <option value="Net 60">Net 60</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BILLING ADDRESSES -->
+      <div class="tsw-billing-row">
+        <div class="tsw-billing-block">
+          <label>Bill From</label>
+          <textarea class="tsw-billing-textarea" id="tsw-bill-from" placeholder="Your name or business&#10;Address&#10;City, Country"></textarea>
+        </div>
+        <div class="tsw-billing-block">
+          <label>Bill To</label>
+          <textarea class="tsw-billing-textarea" id="tsw-bill-to" placeholder="Client name or business&#10;Address&#10;City, Country"></textarea>
+        </div>
+      </div>
+
+      <!-- LINE ITEMS -->
+      <div class="tsw-items-section">
+        <table class="tsw-items-table" id="tsw-items-table">
+          <thead>
+            <tr>
+              <th style="width:42%">Description</th>
+              <th class="num" style="width:12%">Qty</th>
+              <th class="num" style="width:16%">Rate</th>
+              <th class="num" style="width:18%">Amount</th>
+              <th style="width:12%" class="tsw-no-print"></th>
+            </tr>
+          </thead>
+          <tbody id="tsw-rows">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+        <button class="tsw-add-row-btn tsw-no-print" id="tsw-add-row">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add Line Item
+        </button>
+      </div>
+
+      <!-- SUMMARY: NOTES + TOTALS -->
+      <div class="tsw-summary-section">
+
+        <div class="tsw-notes-block">
+          <label>Notes & Payment Details</label>
+          <textarea class="tsw-notes-textarea" id="tsw-notes" placeholder="Thank you for your business!&#10;&#10;Payment details, bank info, or any additional notes..."></textarea>
+        </div>
+
+        <div class="tsw-totals-box">
+          <div class="tsw-totals-row">
+            <span class="tsw-totals-label">Subtotal</span>
+            <span class="tsw-totals-value" id="tsw-subtotal">$0.00</span>
+          </div>
+          <div class="tsw-totals-row">
+            <span class="tsw-totals-label">Tax (%)</span>
+            <input class="tsw-totals-input" id="tsw-tax" type="number" value="0" min="0" max="100" step="0.1"/>
+          </div>
+          <div class="tsw-totals-row">
+            <span class="tsw-totals-label">Discount (%)</span>
+            <input class="tsw-totals-input" id="tsw-discount" type="number" value="0" min="0" max="100" step="0.1"/>
+          </div>
+          <div class="tsw-breakdown" id="tsw-breakdown"></div>
+          <div class="tsw-totals-divider"></div>
+          <div class="tsw-totals-grand">
+            <span class="tsw-totals-grand-label">Total</span>
+            <span class="tsw-totals-grand-value" id="tsw-total">$0.00</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div><!-- /tsw-inv-body -->
+  </div><!-- /tsw-inv-canvas -->
+
+  <!-- TOOLBAR -->
+  <div class="tsw-toolbar tsw-no-print">
+    <button class="tsw-btn tsw-btn-ghost" id="tsw-save-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+      Save Draft
+    </button>
+    <button class="tsw-btn tsw-btn-ghost" id="tsw-load-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      Load Saved
+    </button>
+  </div>
+
+</div><!-- /tsw-inv-shell -->
+
+<!-- TOAST -->
+<div class="tsw-toast" id="tsw-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function() {
+'use strict';
+
+/* ─── CURRENCY ─── */
+const CURRENCIES = {
+  USD: { symbol: '$',    pdfSymbol: '$',    code: 'USD' },
+  EUR: { symbol: '€',    pdfSymbol: 'EUR ', code: 'EUR' },
+  GBP: { symbol: '£',    pdfSymbol: 'GBP ', code: 'GBP' },
+  CAD: { symbol: 'C$',   pdfSymbol: 'C$',   code: 'CAD' },
+  INR: { symbol: '₹',    pdfSymbol: 'INR ', code: 'INR' },
+  AUD: { symbol: 'A$',   pdfSymbol: 'A$',   code: 'AUD' },
+  CHF: { symbol: 'CHF ', pdfSymbol: 'CHF ', code: 'CHF' },
+  JPY: { symbol: '¥',    pdfSymbol: 'JPY ', code: 'JPY' },
+};
+function getCurrency() {
+  return CURRENCIES[document.getElementById('tsw-currency').value] || CURRENCIES.USD;
+}
+function formatMoney(n) {
+  const cur = getCurrency();
+  if (cur.code === 'JPY') return cur.symbol + Math.round(n).toLocaleString('en-US');
+  return cur.symbol + parseFloat(n||0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function pdfMoney(n) {
+  const cur = getCurrency();
+  if (cur.code === 'JPY') return cur.pdfSymbol + Math.round(n).toLocaleString('en-US');
+  return cur.pdfSymbol + parseFloat(n||0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+/* ─── STATE ─── */
+let rows = [{ desc: 'Service / Product Description', qty: 1, rate: 100 }];
+let currentStatus = 'draft';
+let toastTimer;
+
+/* ─── TOAST ─── */
+function showToast(msg) {
+  const el = document.getElementById('tsw-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+/* ─── RENDER ROWS ─── */
+function renderRows() {
+  const tbody = document.getElementById('tsw-rows');
+  tbody.innerHTML = '';
+  rows.forEach((row, i) => {
+    const total = (parseFloat(row.qty)||0) * (parseFloat(row.rate)||0);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><input class="tsw-cell-input desc" data-i="${i}" data-f="desc" value="${escHtml(row.desc)}" placeholder="Item description"/></td>` +
+      `<td><input class="tsw-cell-input num"  data-i="${i}" data-f="qty"  value="${row.qty}"  placeholder="1"    type="number" min="0" step="any"/></td>` +
+      `<td><input class="tsw-cell-input num"  data-i="${i}" data-f="rate" value="${row.rate}" placeholder="0.00" type="number" min="0" step="any"/></td>` +
+      `<td class="tsw-line-total">${formatMoney(total)}</td>` +
+      `<td class="tsw-row-delete tsw-no-print"><button class="tsw-delete-btn" data-i="${i}" title="Remove">\u00d7</button></td>`;
+    tbody.appendChild(tr);
+  });
+  updateTotals();
+}
+
+/* ─── UPDATE TOTALS ─── */
+function updateTotals() {
+  const subtotal = rows.reduce((s,r) => s + (parseFloat(r.qty)||0)*(parseFloat(r.rate)||0), 0);
+  const taxRate  = parseFloat(document.getElementById('tsw-tax').value)      || 0;
+  const discRate = parseFloat(document.getElementById('tsw-discount').value) || 0;
+  const taxAmt   = subtotal * (taxRate  / 100);
+  const discAmt  = subtotal * (discRate / 100);
+  const total    = subtotal + taxAmt - discAmt;
+  document.getElementById('tsw-subtotal').textContent = formatMoney(subtotal);
+  document.getElementById('tsw-total').textContent    = formatMoney(total);
+  const bd = document.getElementById('tsw-breakdown');
+  let bdHtml = '';
+  if (taxAmt  > 0) bdHtml += `<div class="tsw-breakdown-row"><span>Tax (${taxRate}%)</span><span>+${formatMoney(taxAmt)}</span></div>`;
+  if (discAmt > 0) bdHtml += `<div class="tsw-breakdown-row"><span>Discount (${discRate}%)</span><span>-${formatMoney(discAmt)}</span></div>`;
+  bd.innerHTML = bdHtml;
+}
+
+/* ─── ROW EVENTS ─── */
+document.getElementById('tsw-rows').addEventListener('input', e => {
+  const el = e.target, i = parseInt(el.dataset.i), f = el.dataset.f;
+  if (isNaN(i) || !f) return;
+  rows[i][f] = el.value;
+  if (f === 'qty' || f === 'rate') {
+    const t = (parseFloat(rows[i].qty)||0) * (parseFloat(rows[i].rate)||0);
+    el.closest('tr').querySelector('.tsw-line-total').textContent = formatMoney(t);
+    updateTotals();
+  }
+});
+
+document.getElementById('tsw-rows').addEventListener('click', e => {
+  const btn = e.target.closest('.tsw-delete-btn');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.i);
+  if (rows.length === 1) { showToast('⚠️ At least one line item is required'); return; }
+  rows.splice(i, 1);
+  renderRows();
+});
+
+document.getElementById('tsw-add-row').addEventListener('click', () => {
+  rows.push({ desc: '', qty: 1, rate: 0 });
+  renderRows();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#tsw-rows .tsw-cell-input.desc');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+});
+
+['tsw-tax','tsw-discount','tsw-currency'].forEach(id => {
+  document.getElementById(id).addEventListener('input',  () => renderRows());
+  document.getElementById(id).addEventListener('change', () => renderRows());
+});
+
+/* ─── LOGO UPLOAD ─── */
+document.getElementById('tsw-logo-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = document.getElementById('tsw-logo-img');
+    img.src = reader.result;
+    img.style.display = 'block';
+    document.getElementById('tsw-logo-drop').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ─── STATUS PILLS ─── */
+['draft','pending','paid'].forEach(s => {
+  document.getElementById(`tsw-status-${s}`).addEventListener('click', () => {
+    currentStatus = s;
+    ['draft','pending','paid'].forEach(x => {
+      document.getElementById(`tsw-status-${x}`).style.fontWeight = x === s ? '700' : '500';
+      document.getElementById(`tsw-status-${x}`).style.boxShadow  = x === s ? '0 2px 8px rgba(0,0,0,0.12)' : 'none';
+    });
+    document.getElementById('tsw-paid-stamp').classList.toggle('visible', s === 'paid');
+    showToast(s==='paid' ? '✅ Marked as Paid' : s==='pending' ? '🕐 Marked as Pending' : '📝 Set to Draft');
+  });
+});
+
+/* ─── PRINT ─── */
+document.getElementById('tsw-print-btn').addEventListener('click', () => window.print());
+
+/* ─── NEW INVOICE ─── */
+document.getElementById('tsw-clear-btn').addEventListener('click', () => {
+  if (!confirm('Start a new invoice? Unsaved changes will be lost.')) return;
+  rows = [{ desc: '', qty: 1, rate: 0 }];
+  document.getElementById('tsw-company-name').value    = 'Your Company Name';
+  document.getElementById('tsw-company-address').value = 'Street Address\nCity, ZIP\nPhone | Email';
+  document.getElementById('tsw-bill-from').value  = '';
+  document.getElementById('tsw-bill-to').value    = '';
+  document.getElementById('tsw-notes').value      = '';
+  document.getElementById('tsw-inv-number').value = 'INV-001';
+  document.getElementById('tsw-tax').value        = '0';
+  document.getElementById('tsw-discount').value   = '0';
+  document.getElementById('tsw-terms').value      = '';
+  document.getElementById('tsw-inv-date').value   = todayStr();
+  document.getElementById('tsw-inv-due').value    = '';
+  document.getElementById('tsw-logo-img').style.display  = 'none';
+  document.getElementById('tsw-logo-drop').style.display = '';
+  document.getElementById('tsw-paid-stamp').classList.remove('visible');
+  currentStatus = 'draft';
+  renderRows();
+  showToast('🆕 New invoice started');
+});
+
+/* ─── SAVE / LOAD ─── */
+document.getElementById('tsw-save-btn').addEventListener('click', () => {
+  try {
+    localStorage.setItem('tsw_invoice_draft', JSON.stringify({
+      companyName: document.getElementById('tsw-company-name').value,
+      companyAddr: document.getElementById('tsw-company-address').value,
+      billFrom:    document.getElementById('tsw-bill-from').value,
+      billTo:      document.getElementById('tsw-bill-to').value,
+      invNumber:   document.getElementById('tsw-inv-number').value,
+      invDate:     document.getElementById('tsw-inv-date').value,
+      invDue:      document.getElementById('tsw-inv-due').value,
+      currency:    document.getElementById('tsw-currency').value,
+      terms:       document.getElementById('tsw-terms').value,
+      tax:         document.getElementById('tsw-tax').value,
+      discount:    document.getElementById('tsw-discount').value,
+      notes:       document.getElementById('tsw-notes').value,
+      rows, status: currentStatus,
+      logoSrc: document.getElementById('tsw-logo-img').src
+    }));
+    showToast('💾 Draft saved successfully');
+  } catch(e) { showToast('⚠️ Could not save'); }
+});
+
+document.getElementById('tsw-load-btn').addEventListener('click', () => {
+  try {
+    const raw = localStorage.getItem('tsw_invoice_draft');
+    if (!raw) { showToast('⚠️ No saved draft found'); return; }
+    const d = JSON.parse(raw);
+    document.getElementById('tsw-company-name').value    = d.companyName || '';
+    document.getElementById('tsw-company-address').value = d.companyAddr || '';
+    document.getElementById('tsw-bill-from').value  = d.billFrom  || '';
+    document.getElementById('tsw-bill-to').value    = d.billTo    || '';
+    document.getElementById('tsw-inv-number').value = d.invNumber || '';
+    document.getElementById('tsw-inv-date').value   = d.invDate   || '';
+    document.getElementById('tsw-inv-due').value    = d.invDue    || '';
+    document.getElementById('tsw-currency').value   = d.currency  || 'USD';
+    document.getElementById('tsw-terms').value      = d.terms     || '';
+    document.getElementById('tsw-tax').value        = d.tax       || '0';
+    document.getElementById('tsw-discount').value   = d.discount  || '0';
+    document.getElementById('tsw-notes').value      = d.notes     || '';
+    rows = d.rows || [{ desc:'', qty:1, rate:0 }];
+    currentStatus = d.status || 'draft';
+    if (d.logoSrc && d.logoSrc.startsWith('data:')) {
+      const img = document.getElementById('tsw-logo-img');
+      img.src = d.logoSrc; img.style.display = 'block';
+      document.getElementById('tsw-logo-drop').style.display = 'none';
+    }
+    document.getElementById('tsw-paid-stamp').classList.toggle('visible', currentStatus==='paid');
+    renderRows();
+    showToast('📂 Draft loaded successfully');
+  } catch(e) { showToast('⚠️ Could not load draft'); }
+});
+
+/* ─── PDF ─── */
+document.getElementById('tsw-pdf-btn').addEventListener('click', generatePDF);
+
+function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const cur = getCurrency();
+  const mg = 48;
+  let y = 0;
+
+  // Accent bar
+  doc.setFillColor(192,57,43); doc.rect(0,0,W,6,'F');
+  doc.setFillColor(255,255,255); doc.rect(0,6,W,H-6,'F');
+  y = 48;
+
+  // Logo — contained in clean rounded box
+  const logoImg = document.getElementById('tsw-logo-img');
+  let logoH = 0;
+  if (logoImg && logoImg.src && logoImg.src.startsWith('data:')) {
+    try {
+      const fmt  = logoImg.src.substring(5, logoImg.src.indexOf(';')).split('/')[1].toUpperCase();
+      const sfmt = fmt==='JPG' ? 'JPEG' : (['PNG','JPEG','WEBP'].includes(fmt) ? fmt : 'PNG');
+      const bw=110, bh=55, nw=logoImg.naturalWidth||110, nh=logoImg.naturalHeight||55;
+      const ratio = Math.min(bw/nw, bh/nh);
+      const dw=nw*ratio, dh=nh*ratio;
+      doc.setFillColor(255,255,255); doc.setDrawColor(229,231,235); doc.setLineWidth(0.5);
+      doc.roundedRect(mg, y, bw, bh, 4, 4, 'FD');
+      doc.addImage(logoImg.src, sfmt, mg+(bw-dw)/2, y+(bh-dh)/2, dw, dh);
+      logoH = bh + 12;
+    } catch(e) { logoH = 0; }
+  }
+  y += logoH;
+
+  // Company name + INVOICE title
+  const cName = document.getElementById('tsw-company-name').value || 'Your Company';
+  const cAddr = document.getElementById('tsw-company-address').value || '';
+  doc.setFont('times','bold'); doc.setFontSize(17); doc.setTextColor(26,26,46);
+  doc.text(cName, mg, y);
+  doc.setFont('times','bold'); doc.setFontSize(40); doc.setTextColor(26,26,46);
+  doc.text('INVOICE', W-mg, 62, { align:'right' });
+  y += 17;
+
+  // Company address
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(107,114,128);
+  cAddr.split('\n').slice(0,4).forEach(line => {
+    if (line.trim()) { doc.text(line.trim(), mg, y); y += 13; }
+  });
+
+  // Meta right side
+  const invNum   = document.getElementById('tsw-inv-number').value || 'INV-001';
+  const invDate  = document.getElementById('tsw-inv-date').value   || '';
+  const invDue   = document.getElementById('tsw-inv-due').value    || '';
+  const invTerms = document.getElementById('tsw-terms').value      || '';
+  let mY = 76;
+  const mx1 = W-mg-160, mx2 = W-mg;
+  const metaRows = [['Invoice #', invNum], ['Date', invDate]];
+  if (invDue)   metaRows.push(['Due Date', invDue]);
+  if (invTerms) metaRows.push(['Terms',    invTerms]);
+  metaRows.push(['Currency', cur.code]);
+  metaRows.forEach(([label, val]) => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);   doc.setTextColor(107,114,128); doc.text(label, mx1, mY, {align:'right'});
+    doc.setFont('helvetica','bold');   doc.setFontSize(10);  doc.setTextColor(26,26,46);    doc.text(val,   mx2, mY, {align:'right'});
+    mY += 16;
+  });
+
+  // Status badge
+  if (currentStatus !== 'draft') {
+    const sc = currentStatus==='paid' ? [5,150,105] : [217,119,6];
+    doc.setFillColor(sc[0],sc[1],sc[2]);
+    doc.roundedRect(W-mg-52, mY, 52, 18, 4, 4, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(255,255,255);
+    doc.text(currentStatus.toUpperCase(), W-mg-26, mY+11.5, {align:'center'});
+  }
+  y = Math.max(y, mY) + 24;
+
+  // Divider
+  doc.setDrawColor(229,231,235); doc.setLineWidth(1); doc.line(mg, y, W-mg, y); y += 22;
+
+  // Bill From / To
+  const bFrom = document.getElementById('tsw-bill-from').value || '';
+  const bTo   = document.getElementById('tsw-bill-to').value   || '';
+  const cw = (W - mg*2) / 2 - 16;
+  ['BILL FROM','BILL TO'].forEach((lbl, idx) => {
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(192,57,43);
+    doc.text(lbl, mg + idx*(cw+32), y);
+  });
+  y += 14;
+  const fl = bFrom.split('\n'), tl = bTo.split('\n');
+  const ml = Math.max(fl.length, tl.length, 1);
+  for (let i=0; i<ml; i++) {
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(17,24,39);
+    if (fl[i] && fl[i].trim()) doc.text(fl[i].trim(), mg,       y);
+    if (tl[i] && tl[i].trim()) doc.text(tl[i].trim(), mg+cw+32, y);
+    y += 14;
+  }
+  y += 20;
+
+  // Table header
+  const cd=mg+14, cq=W-mg-260, cr=W-mg-150, ca=W-mg-10;
+  doc.setFillColor(26,26,46); doc.roundedRect(mg, y, W-mg*2, 28, 4, 4, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(255,255,255);
+  doc.text('DESCRIPTION', cd, y+18);
+  doc.text('QTY',    cq, y+18, {align:'right'});
+  doc.text('RATE',   cr, y+18, {align:'right'});
+  doc.text('AMOUNT', ca, y+18, {align:'right'});
+  y += 36;
+
+  // Line item rows
+  rows.forEach((row, idx) => {
+    const lt = (parseFloat(row.qty)||0) * (parseFloat(row.rate)||0);
+    if (idx%2===1) { doc.setFillColor(248,249,250); doc.rect(mg, y-7, W-mg*2, 24, 'F'); }
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(17,24,39);
+    const dtxt = doc.splitTextToSize(row.desc||'', cq-cd-10);
+    doc.text(dtxt[0]||'', cd, y+9);
+    doc.setTextColor(55,65,81);
+    doc.text(String(row.qty||''), cq, y+9, {align:'right'});
+    doc.text(pdfMoney(row.rate),  cr, y+9, {align:'right'});
+    doc.setFont('helvetica','bold'); doc.setTextColor(17,24,39);
+    doc.text(pdfMoney(lt), ca, y+9, {align:'right'});
+    y += 24;
+    if (y > H-180) { doc.addPage(); y=48; }
+  });
+
+  // Subtotal rows
+  y += 10;
+  doc.setDrawColor(229,231,235); doc.setLineWidth(0.75); doc.line(mg, y, W-mg, y); y += 18;
+  const sub  = rows.reduce((s,r) => s+(parseFloat(r.qty)||0)*(parseFloat(r.rate)||0), 0);
+  const txR  = parseFloat(document.getElementById('tsw-tax').value)      || 0;
+  const dcR  = parseFloat(document.getElementById('tsw-discount').value) || 0;
+  const txA  = sub*(txR/100), dcA=sub*(dcR/100), tot=sub+txA-dcA;
+  const tlx  = W-mg-130, tvx=W-mg;
+  const totRows = [['Subtotal', pdfMoney(sub)]];
+  if (txA>0) totRows.push([`Tax (${txR}%)`,      '+'+pdfMoney(txA)]);
+  if (dcA>0) totRows.push([`Discount (${dcR}%)`, '-'+pdfMoney(dcA)]);
+  totRows.forEach(([label, val]) => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(107,114,128); doc.text(label, tlx, y, {align:'right'});
+    doc.setTextColor(55,65,81); doc.text(val, tvx, y, {align:'right'});
+    y += 18;
+  });
+
+  // Total box — full width, no clipping
+  y += 6;
+  doc.setFillColor(26,26,46); doc.roundedRect(mg, y-13, W-mg*2, 36, 6, 6, 'F');
+  doc.setFont('times','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+  doc.text('TOTAL', mg+18, y+11);
+  doc.setFontSize(18);
+  doc.text(pdfMoney(tot), W-mg-14, y+11, {align:'right'});
+  y += 48;
+
+  // Notes
+  const notes = document.getElementById('tsw-notes').value.trim();
+  if (notes) {
+    doc.setDrawColor(229,231,235); doc.setLineWidth(1); doc.line(mg, y, W-mg, y); y += 16;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(192,57,43);
+    doc.text('NOTES & PAYMENT DETAILS', mg, y); y += 14;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(55,65,81);
+    doc.splitTextToSize(notes, W-mg*2).forEach(line => { doc.text(line, mg, y); y += 14; });
+  }
+
+  // PAID watermark
+  if (currentStatus === 'paid') {
+    try {
+      doc.setFont('helvetica','bold'); doc.setFontSize(80); doc.setTextColor(5,150,105);
+      doc.setGState(new doc.GState({ opacity: 0.12 }));
+      doc.text('PAID', W/2, H/2+20, { align:'center', angle:22 });
+      doc.setGState(new doc.GState({ opacity: 1 }));
+    } catch(e) {}
+  }
+
+  // Footer
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(156,163,175);
+  doc.text('Generated with The Story Watch Invoice Generator \xb7 thestorywatch.com', W/2, H-24, {align:'center'});
+
+  const fn = document.getElementById('tsw-inv-number').value || 'invoice';
+  doc.save(fn + '.pdf');
+  showToast('✅ PDF downloaded successfully');
+}
+
+/* ─── INIT ─── */
+document.getElementById('tsw-inv-date').value = todayStr();
+const due = new Date(); due.setDate(due.getDate() + 30);
+document.getElementById('tsw-inv-due').value = due.toISOString().split('T')[0];
+renderRows();
+
+})();
+</script>
+<!-- END TSW Invoice Generator -->
