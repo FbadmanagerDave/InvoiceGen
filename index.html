@@ -1199,53 +1199,55 @@ function makePDF(){
   y = 44;
   var headerBottom = y;
 
-  /* Logo — floated left, no box, just clean image */
+  /* Logo — no box, just clean image, sits tight beside company name */
   var li=document.getElementById('tsw-logo-img');
   var logoEndX = mg;
+  var logoBottomY = y;
   if(li&&li.src&&li.src.startsWith('data:')){
     try{
       var fmt=li.src.substring(5,li.src.indexOf(';')).split('/')[1].toUpperCase();
       var sf=fmt==='JPG'?'JPEG':(['PNG','JPEG','WEBP'].includes(fmt)?fmt:'PNG');
-      var bw=64,bh=64,nw=li.naturalWidth||64,nh=li.naturalHeight||64;
+      var bw=52,bh=52,nw=li.naturalWidth||52,nh=li.naturalHeight||52;
       var r=Math.min(bw/nw,bh/nh),dw=nw*r,dh=nh*r;
       doc.addImage(li.src,sf,mg,y,dw,dh);
-      logoEndX = mg + dw + 12;
-      headerBottom = Math.max(headerBottom, y + dh);
-    }catch(e){ logoEndX=mg; }
+      logoEndX = mg + dw + 10;
+      logoBottomY = y + dh;
+    }catch(e){ logoEndX=mg; logoBottomY=y; }
   }
 
-  /* Company name + address to the right of logo */
+  /* Company name + address — starts at same Y as logo, to its right */
   var cn=document.getElementById('tsw-company-name').value||'';
   var ca=document.getElementById('tsw-company-address').value||'';
   var textX = logoEndX;
+  var textY = y + 4;
   if(cn){
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(26,26,46);
-    doc.text(cn, textX, y+12);
+    doc.text(cn, textX, textY);
+    textY += 18;
   }
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,124,132);
-  var addrY = y + (cn ? 26 : 12);
   ca.split('\n').slice(0,4).forEach(function(l){
-    if(l.trim()){ doc.text(l.trim(), textX, addrY); addrY+=12; }
+    if(l.trim()){ doc.text(l.trim(), textX, textY); textY+=12; }
   });
-  headerBottom = Math.max(headerBottom, addrY + 4);
+  headerBottom = Math.max(logoBottomY, textY) + 4;
 
-  /* INVOICE title — top right, very large */
+  /* INVOICE title — top right, anchored to page top not logo */
   doc.setFont('times','bold'); doc.setFontSize(48); doc.setTextColor(26,26,46);
   doc.text('INVOICE', W-mg, y+36, {align:'right'});
 
-  /* Invoice number displayed prominently below INVOICE title */
+  /* Invoice number — immediately below INVOICE title, tight gap */
   var iNum=document.getElementById('tsw-inv-number').value||'INV-001';
   doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(192,57,43);
-  doc.text(iNum, W-mg, y+52, {align:'right'});
+  doc.text(iNum, W-mg, y+50, {align:'right'});
 
-  y = Math.max(headerBottom, y+68) + 20;
+  y = headerBottom + 16;
 
-  /* ── Meta grid — right-aligned, clean two-col ── */
+  /* ── Meta grid — right-aligned, starts just below invoice number ── */
   var iDate=document.getElementById('tsw-inv-date').value||'';
   var iDue=document.getElementById('tsw-inv-due').value||'';
   var iTerm=document.getElementById('tsw-terms').value||'';
   var metaLeft=W-mg-220, metaRight=W-mg;
-  var mY=y;
+  var mY = 44 + 58; /* flush under iNum line */
 
   var metaRows=[['Date', iDate]];
   if(iDue)  metaRows.push(['Due Date', iDue]);
